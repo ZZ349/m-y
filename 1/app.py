@@ -19,12 +19,19 @@ def fetch_chinese_text_from_url(url):
     try:
         response = requests.get(url, headers=headers)
         response.raise_for_status()  # 检查请求是否成功
+
+        # 尝试检测网页编码
+        response.encoding = response.apparent_encoding
+
         soup = BeautifulSoup(response.text, 'html.parser')
-        text = soup.get_text(separator=' ')
-        # 使用正则表达式保留中文字符（包括汉字、中文标点符号等）
-        cleaned_text = re.sub(r'[^\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]', ' ', text).strip()
+        text = soup.get_text(separator=' ')  # 使用空格作为分隔符来保持句子结构
+
+        # 使用正则表达式保留中文字符（包括汉字、中文标点符号等）和空格
+        cleaned_text = re.sub(r'[^\u4e00-\u9fff\u3000-\u303f\uff00-\uffef\s]', '', text).strip()
+
         if not cleaned_text:  # 如果文本为空，则抛出异常
             raise ValueError("The fetched content is empty or contains no Chinese characters.")
+
         return cleaned_text
     except Exception as e:
         st.error(f"Error fetching Chinese content from {url}: {str(e)}")
@@ -33,11 +40,13 @@ def fetch_chinese_text_from_url(url):
 # 分析文本并返回最常见的20个单词及其频率，确保只包含中文词汇
 def analyze_chinese_text(text):
     words = list(jieba.cut(text))  # 使用jieba进行中文分词
-    chinese_words = [word for word in words if re.match(r'^[\u4e00-\u9fff]+$', word)]  # 只保留纯汉字词汇
-    # 去除长度为1的词（可选，根据需求）
-    chinese_words = [word for word in chinese_words if len(word) > 1]
+
+    # 只保留纯汉字词汇和长度大于1的词
+    chinese_words = [word for word in words if re.match(r'^[\u4e00-\u9fff]+$', word) and len(word) > 1]
+
     if not chinese_words:  # 如果没有找到任何中文单词，则抛出异常
         raise ValueError("No valid Chinese words found in the provided text after segmentation.")
+
     return dict(Counter(chinese_words).most_common(20))
 
 # Plotly柱状图
@@ -53,6 +62,7 @@ def pyecharts_pie_chart(top_20_words):
     pie.set_global_opts(title_opts=opts.TitleOpts(title="Top 20 Words Distribution"))
     return pie.render_embed()
 
+
 # Matplotlib柱状图
 def matplotlib_bar_chart(top_20_words):
     plt.rcParams['font.sans-serif'] = ['SimHei']  # 设置中文字体，这里使用黑体
@@ -66,6 +76,9 @@ def matplotlib_bar_chart(top_20_words):
     plt.xticks(rotation=45, ha='right')
     plt.tight_layout()
     return fig
+
+
+
 # 生成词云图
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
