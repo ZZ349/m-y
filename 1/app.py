@@ -10,6 +10,8 @@ import plotly.express as px
 import streamlit as st
 import streamlit.components.v1 as components
 
+import re
+
 def fetch_text(url):
     headers = {
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0"
@@ -17,12 +19,34 @@ def fetch_text(url):
     try:
         response = requests.get(url, headers=headers)
         response.raise_for_status() # 检查请求是否成功
-        soup = BeautifulSoup(response.content, 'html.parser')
-        text = soup.get_text()
-        return text
+        
+        # 检查 Content-Type 确认是文本并且有正确的字符集
+        content_type = response.headers.get('content-type', '').lower()
+        if 'text' not in content_type or 'charset=utf-8' not in content_type:
+            st.error("该网页的内容类型不支持或不是UTF-8编码")
+            return None
+        
+        # 使用正确的编码解码内容
+        response.encoding = 'utf-8'
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # 提取所有可见的文本
+        text = soup.stripped_strings
+        chinese_text = ''.join([t for t in text if is_chinese(t)])
+        if not chinese_text:
+            st.error("未找到有效的中文文本")
+            return None
+        
+        return chinese_text
     except Exception as e:
         st.error(f"无法抓取文章： {e}")
         return None
+
+# 定义一个函数来检查字符串是否为中文
+def is_chinese(string):
+    # 中文字符的Unicode编码范围是：\u4e00-\u9fff
+    pattern = re.compile(r'[\u4e00-\u9fff]+')
+    return bool(pattern.search(string))
 
 def process_text(text):
     if not text:
